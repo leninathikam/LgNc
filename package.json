@@ -1,0 +1,22 @@
+{
+  "name": "lgnc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "An open-source, local-first, self-hosted personal AI assistant. Your data, your API keys.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.5.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "pnpm --filter @lgnc/db migrate"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.6.0"
+  }
+}

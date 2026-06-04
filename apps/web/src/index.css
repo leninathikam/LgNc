@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 246 247 249;
+  --surface: 255 255 255;
+  --elevated: 255 255 255;
+  --border: 226 228 233;
+  --fg: 17 20 28;
+  --muted: 110 116 130;
+  --accent: 99 102 241;
+  --accent-fg: 255 255 255;
+}
+
+.dark {
+  --bg: 10 11 15;
+  --surface: 17 19 26;
+  --elevated: 24 27 36;
+  --border: 38 42 54;
+  --fg: 233 236 243;
+  --muted: 138 145 162;
+  --accent: 129 140 248;
+  --accent-fg: 13 15 22;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: theme("fontFamily.sans");
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, unobtrusive scrollbars. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Markdown rendering inside chat bubbles. */
+.prose-chat {
+  line-height: 1.6;
+  word-break: break-word;
+}
+.prose-chat p {
+  margin: 0 0 0.75rem;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}
+.prose-chat pre {
+  background: rgb(var(--bg));
+  border: 1px solid rgb(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+}
+.prose-chat code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+}
+.prose-chat :not(pre) > code {
+  background: rgb(var(--bg));
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.35rem;
+  border: 1px solid rgb(var(--border));
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0 0 0.75rem;
+  padding-left: 1.4rem;
+}
+.prose-chat li {
+  margin: 0.2rem 0;
+}
+.prose-chat a {
+  color: rgb(var(--accent));
+  text-decoration: underline;
+}
+.prose-chat h1,
+.prose-chat h2,
+.prose-chat h3 {
+  font-weight: 650;
+  margin: 1rem 0 0.5rem;
+  line-height: 1.3;
+}

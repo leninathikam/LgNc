@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Local data (your assistant's brain lives here -- never commit it)
+*.db
+*.db-shm
+*.db-wal
+data/
+.lgnc/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+secret.key
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Transformers.js / model cache
+.cache/
+models/
