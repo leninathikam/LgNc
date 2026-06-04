@@ -31,6 +31,8 @@ export function runMigrations(sqlite: Database.Database): void {
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT 'New chat',
+      summary TEXT,
+      summarized_count INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
@@ -64,4 +66,26 @@ export function runMigrations(sqlite: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
   `);
+
+  // Idempotent column additions for databases created before auto-compaction.
+  addColumnIfMissing(sqlite, "conversations", "summary", "TEXT");
+  addColumnIfMissing(
+    sqlite,
+    "conversations",
+    "summarized_count",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+}
+
+function addColumnIfMissing(
+  sqlite: Database.Database,
+  table: string,
+  column: string,
+  definition: string,
+): void {
+  const cols = sqlite
+    .prepare(`PRAGMA table_info(${table})`)
+    .all() as { name: string }[];
+  if (cols.some((c) => c.name === column)) return;
+  sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

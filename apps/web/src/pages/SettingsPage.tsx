@@ -22,18 +22,103 @@ export function SettingsPage() {
       </header>
 
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="mx-auto max-w-2xl space-y-4">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">
-            Providers
-          </h2>
-          {providers.map((p) => (
-            <ProviderCard key={p.provider} provider={p} onChanged={() => {
-              queryClient.invalidateQueries({ queryKey: ["providers"] });
-              queryClient.invalidateQueries({ queryKey: ["models"] });
-            }} />
-          ))}
+        <div className="mx-auto max-w-2xl space-y-8">
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-muted">
+              Providers
+            </h2>
+            {providers.map((p) => (
+              <ProviderCard key={p.provider} provider={p} onChanged={() => {
+                queryClient.invalidateQueries({ queryKey: ["providers"] });
+                queryClient.invalidateQueries({ queryKey: ["models"] });
+              }} />
+            ))}
+          </section>
+
+          <section className="space-y-4">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-muted">
+              Context
+            </h2>
+            <CompactionCard />
+          </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CompactionCard() {
+  const queryClient = useQueryClient();
+  const { data: settings = {} } = useQuery({
+    queryKey: ["settings"],
+    queryFn: api.getSettings,
+  });
+
+  const save = useMutation({
+    mutationFn: (patch: Record<string, string>) => api.saveSettings(patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settings"] }),
+  });
+
+  const enabled = settings.compaction_enabled !== "false";
+  const threshold = settings.compaction_threshold ?? "0.8";
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="font-medium">Auto-compact long conversations</div>
+          <div className="max-w-md text-xs text-muted">
+            When a chat nears the model's context window, LgNc summarizes older
+            messages so conversations never hit the limit (and stay cheaper).
+          </div>
+        </div>
+        <button
+          role="switch"
+          aria-checked={enabled}
+          onClick={() =>
+            save.mutate({ compaction_enabled: enabled ? "false" : "true" })
+          }
+          className={clsx(
+            "relative h-6 w-11 shrink-0 rounded-full transition",
+            enabled ? "bg-accent" : "bg-elevated",
+          )}
+        >
+          <span
+            className={clsx(
+              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition",
+              enabled ? "left-[22px]" : "left-0.5",
+            )}
+          />
+        </button>
+      </div>
+
+      {enabled && (
+        <div className="mt-4">
+          <div className="mb-2 text-xs font-medium text-muted">
+            Compact when context reaches
+          </div>
+          <div className="flex gap-2">
+            {[
+              { v: "0.75", label: "75%" },
+              { v: "0.8", label: "80%" },
+              { v: "0.9", label: "90%" },
+            ].map((opt) => (
+              <button
+                key={opt.v}
+                onClick={() => save.mutate({ compaction_threshold: opt.v })}
+                className={clsx(
+                  "rounded-lg border px-3 py-1.5 text-sm transition",
+                  threshold === opt.v
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted hover:text-fg",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

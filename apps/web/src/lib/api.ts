@@ -65,8 +65,15 @@ export const api = {
     http<{ ok: true }>(`/api/memories/${id}`, { method: "DELETE" }),
 };
 
+export interface ChatMeta {
+  conversationId: string;
+  title: string;
+  compacted?: boolean;
+  contextFillPercent?: number | null;
+}
+
 export interface ChatStreamHandlers {
-  onMeta?: (meta: { conversationId: string; title: string }) => void;
+  onMeta?: (meta: ChatMeta) => void;
   onDelta: (text: string) => void;
   onDone?: () => void;
   onError?: (message: string) => void;
@@ -130,7 +137,7 @@ function dispatchEvent(raw: string, handlers: ChatStreamHandlers): void {
 
   switch (event) {
     case "meta":
-      handlers.onMeta?.(payload as { conversationId: string; title: string });
+      handlers.onMeta?.(payload as unknown as ChatMeta);
       break;
     case "delta":
       handlers.onDelta(String(payload.text ?? ""));

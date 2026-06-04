@@ -22,6 +22,10 @@ export function ChatPage() {
   const [streamingText, setStreamingText] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contextInfo, setContextInfo] = useState<{
+    fillPercent: number | null;
+    compacted: boolean;
+  } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +96,10 @@ export function ChatPage() {
       {
         onMeta: (meta) => {
           newConversationId = meta.conversationId;
+          setContextInfo({
+            fillPercent: meta.contextFillPercent ?? null,
+            compacted: Boolean(meta.compacted),
+          });
         },
         onDelta: (delta) => {
           assembled += delta;
@@ -137,7 +145,22 @@ export function ChatPage() {
         <h1 className="truncate text-sm font-medium text-muted">
           {conversationData?.conversation.title ?? "New chat"}
         </h1>
-        <ModelPicker value={model} onChange={changeModel} />
+        <div className="flex items-center gap-3">
+          {contextInfo?.fillPercent != null && (
+            <span
+              className="hidden items-center gap-1.5 text-xs text-muted sm:flex"
+              title="Approximate share of the model's context window in use"
+            >
+              {contextInfo.compacted && (
+                <span className="rounded bg-accent/15 px-1.5 py-0.5 text-accent">
+                  compacted
+                </span>
+              )}
+              context {contextInfo.fillPercent}%
+            </span>
+          )}
+          <ModelPicker value={model} onChange={changeModel} />
+        </div>
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">

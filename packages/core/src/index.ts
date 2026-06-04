@@ -5,3 +5,4 @@ export * from "./settings.js";
 export * from "./providers.js";
 export * from "./embeddings.js";
 export * from "./memory.js";
+export * from "./compaction.js";

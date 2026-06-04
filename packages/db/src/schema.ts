@@ -4,6 +4,10 @@ import { blob, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 export const conversations = sqliteTable("conversations", {
   id: text("id").primaryKey(),
   title: text("title").notNull().default("New chat"),
+  // Rolling summary of older turns, produced by auto-compaction.
+  summary: text("summary"),
+  // How many of the conversation's messages (in order) are covered by `summary`.
+  summarizedCount: integer("summarized_count").notNull().default(0),
   createdAt: integer("created_at")
     .notNull()
     .default(sql`(unixepoch())`),

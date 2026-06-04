@@ -4,10 +4,13 @@ import { streamText } from "ai";
 import { z } from "zod";
 import {
   buildMemoryContext,
+  buildSummaryContext,
   extractAndStoreMemories,
   getLanguageModel,
   getSetting,
+  isCompactionEnabled,
   isMemoryEnabled,
+  prepareContext,
   ProviderNotConfiguredError,
   retrieveRelevant,
   SETTING_KEYS,
@@ -19,6 +22,7 @@ import {
   getMessages,
   renameConversation,
   titleFromText,
+  updateConversationSummary,
 } from "../store.js";
 
 const bodySchema = z.object({
@@ -49,16 +53,17 @@ chatRoute.post("/", async (c) => {
     content: m.content,
   }));
 
-  const systemParts: string[] = [];
+  // Overhead = base prompt + memory block (counted against the context budget).
+  const overheadParts: string[] = [];
   const basePrompt =
     getSetting(SETTING_KEYS.systemPrompt) ||
     "You are LgNc, a helpful personal assistant that lives on the user's machine. Be clear, concise, and genuinely useful.";
-  systemParts.push(basePrompt);
+  overheadParts.push(basePrompt);
 
   if (isMemoryEnabled()) {
     const relevant = await retrieveRelevant(message, 5);
     const memContext = buildMemoryContext(relevant);
-    if (memContext) systemParts.push(memContext);
+    if (memContext) overheadParts.push(memContext);
   }
 
   let languageModel;
@@ -72,10 +77,62 @@ chatRoute.post("/", async (c) => {
     return c.json({ error: msg, conversationId: conversation.id }, 400);
   }
 
+  // Auto-compaction: summarize older turns once the conversation approaches the
+  // model's context window, keeping recent turns verbatim. Falls back to the
+  // full history if disabled or if summarization fails.
+  let contextMessages = history.filter((m) => m.role !== "system");
+  let rollingSummary = conversation.summary;
+  let compactionMeta: { compacted: boolean; fillPercent: number } | null = null;
+
+  if (isCompactionEnabled()) {
+    try {
+      const prepared = await prepareContext({
+        modelId: model,
+        allMessages: contextMessages,
+        storedSummary: conversation.summary,
+        storedSummarizedCount: conversation.summarizedCount,
+        systemOverheadText: overheadParts.join("\n\n"),
+      });
+      contextMessages = prepared.messages;
+      rollingSummary = prepared.summary;
+      compactionMeta = {
+        compacted: prepared.compacted,
+        fillPercent: Math.round(
+          (prepared.usageBeforeTokens / prepared.contextWindow) * 100,
+        ),
+      };
+      if (prepared.compacted) {
+        updateConversationSummary(
+          conversation.id,
+          prepared.summary,
+          prepared.summarizedCount,
+        );
+        console.log(
+          `[lgnc] Auto-compacted conversation ${conversation.id} ` +
+            `(was ~${compactionMeta.fillPercent}% of context window).`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        "[lgnc] Compaction step skipped:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  const systemParts = [...overheadParts];
+  const summaryContext = buildSummaryContext(rollingSummary);
+  if (summaryContext) systemParts.push(summaryContext);
+
   return streamSSE(c, async (stream) => {
     await stream.writeSSE({
       event: "meta",
-      data: JSON.stringify({ conversationId: conversation.id, title: conversation.title }),
+      data: JSON.stringify({
+        conversationId: conversation.id,
+        title: conversation.title,
+        compacted: compactionMeta?.compacted ?? false,
+        contextFillPercent: compactionMeta?.fillPercent ?? null,
+      }),
     });
 
     let full = "";
@@ -83,7 +140,7 @@ chatRoute.post("/", async (c) => {
       const result = streamText({
         model: languageModel,
         system: systemParts.join("\n\n"),
-        messages: history.filter((m) => m.role !== "system"),
+        messages: contextMessages,
       });
 
       for await (const delta of result.textStream) {

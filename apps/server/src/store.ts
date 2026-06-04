@@ -27,7 +27,8 @@ export function getMessages(conversationId: string): Message[] {
     .select()
     .from(messages)
     .where(eq(messages.conversationId, conversationId))
-    .orderBy(messages.createdAt)
+    // rowid tiebreaker keeps ordering stable for messages added in the same second.
+    .orderBy(messages.createdAt, sql`rowid`)
     .all();
 }
 
@@ -60,6 +61,18 @@ export function addMessage(
     .where(eq(conversations.id, conversationId))
     .run();
   return getDb().select().from(messages).where(eq(messages.id, id)).get()!;
+}
+
+export function updateConversationSummary(
+  id: string,
+  summary: string | null,
+  summarizedCount: number,
+): void {
+  getDb()
+    .update(conversations)
+    .set({ summary, summarizedCount })
+    .where(eq(conversations.id, id))
+    .run();
 }
 
 export function renameConversation(id: string, title: string): void {
