@@ -11,6 +11,13 @@ import { settingsRoute } from "./routes/settings.js";
 import { memoriesRoute } from "./routes/memories.js";
 import { conversationsRoute } from "./routes/conversations.js";
 import { providersRoute } from "./routes/providers.js";
+import {
+  bodyLimitMiddleware,
+  rateLimitMiddleware,
+  initRateLimiter,
+  DEFAULT_LIMIT_CONFIG,
+  type LimitConfig,
+} from "./middleware/limits.js";
 
  function getOrCreateLocalToken(): string {
    const dataDir = resolveDataDir();
@@ -27,17 +34,35 @@ const localAuthToken = getOrCreateLocalToken();
 // Initialize the local database (creates ~/.lgnc and tables on first run).
 getDb();
 
+// Load request limiting configuration from environment variables
+const limitConfig: LimitConfig = {
+  maxBodySize: parseInt(process.env.MAX_BODY_SIZE ?? String(DEFAULT_LIMIT_CONFIG.maxBodySize)),
+  maxChatBodySize: parseInt(process.env.MAX_CHAT_BODY_SIZE ?? String(DEFAULT_LIMIT_CONFIG.maxChatBodySize)),
+  rateLimit: {
+    enabled: process.env.RATE_LIMIT_ENABLED !== "false",
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? String(DEFAULT_LIMIT_CONFIG.rateLimit.windowMs)),
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS ?? String(DEFAULT_LIMIT_CONFIG.rateLimit.maxRequests)),
+  },
+};
+
+// Initialize rate limiter
+initRateLimiter(limitConfig);
+
 const app = new Hono();
 
 // Local-first: the web app and server run on the same machine.
- const allowedOrigins = ["http://localhost:5173", "tauri://localhost"];
- app.use(
-   "/api/*",
-   cors({
-     origin: (origin) => (!origin || allowedOrigins.includes(origin) ? origin : "http://localhost:5173"),
-     credentials: true,
-    })
+const allowedOrigins = ["http://localhost:5173", "tauri://localhost"];
+app.use(
+  "/api/*",
+  cors({
+    origin: (origin) => (!origin || allowedOrigins.includes(origin) ? origin : "http://localhost:5173"),
+    credentials: true,
+  })
 );
+
+// Apply request limiting middleware
+app.use("*", bodyLimitMiddleware(limitConfig));
+app.use("*", rateLimitMiddleware(limitConfig));
  app.use("/api/*", async (c, next) => {
    if (c.req.path === "/api/health") return await next();
  
