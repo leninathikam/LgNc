@@ -6,6 +6,31 @@ import type {
   ProviderStatus,
 } from "./types";
 
+export class ApiError extends Error {
+  constructor(
+    public statusCode: number,
+    message: string,
+    public retryAfter?: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+
+  /**
+   * Whether this is a rate limit error
+   */
+  get isRateLimited(): boolean {
+    return this.statusCode === 429;
+  }
+
+  /**
+   * Whether this is a payload too large error
+   */
+  get isPayloadTooLarge(): boolean {
+    return this.statusCode === 413;
+  }
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -13,7 +38,12 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || `Request failed (${res.status})`);
+    const errorMsg = (body as { error?: string }).error || `Request failed (${res.status})`;
+    const retryAfter = res.headers.get("Retry-After")
+      ? parseInt(res.headers.get("Retry-After") || "0", 10)
+      : undefined;
+
+    throw new ApiError(res.status, errorMsg, retryAfter);
   }
   return (await res.json()) as T;
 }
@@ -82,6 +112,9 @@ export interface ChatStreamHandlers {
 /**
  * POSTs a chat message and consumes the SSE stream from the server.
  * EventSource can't POST, so we parse the SSE wire format off a fetch body.
+/**
+ * POSTs a chat message and consumes the SSE stream from the server.
+ * EventSource can't POST, so we parse the SSE wire format off a fetch body.
  */
 export async function streamChat(
   body: { conversationId?: string; model: string; message: string },
@@ -95,9 +128,30 @@ export async function streamChat(
     signal,
   });
 
-  if (!res.ok || !res.body) {
+  if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    handlers.onError?.((err as { error?: string }).error || "Request failed.");
+    const errorMsg = (err as { error?: string }).error || "Request failed.";
+    const retryAfter = res.headers.get("Retry-After")
+      ? parseInt(res.headers.get("Retry-After") || "0", 10)
+      : undefined;
+
+    if (res.status === 429) {
+      const waitSeconds = retryAfter || 60;
+      handlers.onError?.(
+        `Rate limited. Please wait ${waitSeconds} second${waitSeconds !== 1 ? "s" : ""} before trying again.`,
+      );
+    } else if (res.status === 413) {
+      handlers.onError?.(
+        `Message too large. Please shorten your message and try again.`,
+      );
+    } else {
+      handlers.onError?.(errorMsg);
+    }
+    return;
+  }
+
+  if (!res.body) {
+    handlers.onError?.("No response body");
     return;
   }
 
